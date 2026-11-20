@@ -93,7 +93,7 @@ typedef struct _cdv1_debug89_full
     _cdv1_trace89_base *volatile cursor;
     void (*log)(void*, const char*);
     void *out;
-    float start;
+    double start;
 
 } _cdv1_debug89_full;
 
@@ -140,6 +140,13 @@ extern double (*_cdv1_execution_timer)(void);
 #else /* ABPI_PLATFORM_GNU_LINUX == 1 */
     /* #error "c89lib/ldbg.h: if you need, implement here crash internals for your platform support" */
 #endif /* a block, where you can extend crashfault handler functionality for your platform */
+
+#define _cdv1_a(dir, ptr, val) \
+    (((dir) == 0) ? (void*) (ptr) : (void*) \
+    (((uintptr_t) (ptr) + (((val) - 1) * dir)) & ~((val) - 1)))
+
+#define _cdv1_aof(type) \
+    (offsetof(struct {uint8_t _1; type _2;}, _2))
 
 #endif /* CENLIB_INCLUDED_LDBG_H */
 
@@ -235,7 +242,7 @@ extern double (*_cdv1_execution_timer)(void);
         debug89 *_cdv1_lfn_dbp = (debug89*) suite; \
         uint8_t _cdv1_lfn_full = (((debug89*) suite)->flags & DEBUG89_FLAGS_EXTENDED) != 0; \
         _cdv1_load((void*) suite, entries, message, timer); \
-        if (_cdv1_lfn_full == 1) { \
+        if (_cdv1_lfn_full == 1 && entries != NULL) { \
             (_cdv1_lfn_dbp->cursor)->flags = 0; \
             (_cdv1_lfn_dbp->cursor)->unit = ABPI_TRANSLATION_UNIT; \
             (_cdv1_lfn_dbp->cursor)->func = ABPI_FUNCTION_UNIT; \
@@ -267,9 +274,9 @@ extern double (*_cdv1_execution_timer)(void);
     #define dbgfninf dbgfnsav(), sizeof _cdv1_inform_empty
     #define dbgfnwrn dbgfnsav(), sizeof _cdv1_warn_empty
     #define dbgfnmsk(mask, option) ((void) 0)
-    #define dbgmsk(mask) _cdv1_dummy_mask
+    #define dbgmsk(mask) *_ldbg_get_##mask()
     #define dbglog (dbgsuite->message != NULL) ? \
-                    (void*) (*((uintptr_t*) (dbgsuite->message)) = (uintptr_t) LDBG) : \
+                    (void*) (*((uintptr_t*) _cdv1_a(1, dbgsuite->message, _cdv1_aof(uintptr_t))) = (uintptr_t) LDBG) : \
                     (void*) (dbgsuite->message = LDBG), _cdv1_platform_log
 
     #if !defined(_cdv1_outputs_empty_defined)
@@ -311,7 +318,7 @@ extern double (*_cdv1_execution_timer)(void);
         debug89 *_cdv1_lfn_dbp = (debug89*) suite; \
         uint8_t _cdv1_lfn_full = (((debug89*) suite)->flags & DEBUG89_FLAGS_EXTENDED) != 0; \
         _cdv1_load((void*) suite, entries, message, timer); \
-        if (_cdv1_lfn_full == 1) { \
+        if (_cdv1_lfn_full == 1 && entries != NULL) { \
             (_cdv1_lfn_dbp->cursor)->flags = 0; \
             (_cdv1_lfn_dbp->cursor)->unit = LDBG; \
             (_cdv1_lfn_dbp->cursor)->func = ABPI_FUNCTION_UNIT; \
@@ -341,7 +348,8 @@ extern double (*_cdv1_execution_timer)(void);
                 _cdv1_lfn_dbp->flags |= DEBUG89_FLAGS_OUTGROUP; \
             }; \
             _cdv1_lfn_dbp->flags &= ~DEBUG89_FLAGS_FILTERED; \
-            _cdv1_lfn_dbp->flags |= (_cdv1_lfn_dbp->cursor->flags & TRACE89_FLAGS_FILTERED) != 0; \
+            _cdv1_lfn_dbp->flags |= ((_cdv1_lfn_dbp->cursor->flags & TRACE89_FLAGS_FILTERED) != 0) \
+                                     << DEBUG89_FLAGS_FILTERED_BIT; \
             _cdv1_lfn_dbp->cursor--; \
         } \
         _cdv1_dbsym_final;
@@ -350,7 +358,7 @@ extern double (*_cdv1_execution_timer)(void);
     #define dbgdef(log, out) _cdv1_define((void (*)(void*, const char*)) log, (void*) out)
     #define dbgfninf dbgfnsav(), _cdv1_inform_log
     #define dbgfnwrn dbgfnsav(), _cdv1_warn_log
-    #define dbgmsk(mask) *_abildbg_get_mask_##mask()
+    #define dbgmsk(mask) *_ldbg_get_##mask()
     #define dbglog sizeof _cdv1_log_empty
     #define dbgfnmsk(mask, option) \
         do { \
@@ -362,7 +370,7 @@ extern double (*_cdv1_execution_timer)(void);
                 _cdv1_lfn_dbp->flags &= ~DEBUG89_FLAGS_FILTERED; \
             } else { \
                 _cdv1_lfn_dbp->flags |= \
-                    ((*_abildbg_get_mask_##mask() & _cdv1_test) == 0) << DEBUG89_FLAGS_FILTERED_BIT; \
+                    ((*_ldbg_get_##mask() & _cdv1_test) == 0) << DEBUG89_FLAGS_FILTERED_BIT; \
             } \
         } while(0)
 
@@ -394,15 +402,16 @@ extern double (*_cdv1_execution_timer)(void);
     #endif /* _cdv1_build_full_defined */
 #endif /* LDBG_HELP_LEVEL == 2 */
 
+
 #define dbgmskdecl(abi, mask) \
-    abi uint64_t* _abildbg_get_mask_##mask(void);
+    abi uint64_t* _ldbg_get_##mask(void);
 
 #define dbgmskoptn(mask, option, bit) \
     static const uint64_t mask##_##option = (uint64_t)1 << bit;
 
 #define dbgmskimpl(mask) \
     static uint64_t _cdv1_containerof_##mask = ~(uint64_t)0; \
-    uint64_t* _abildbg_get_mask_##mask(void) { \
+    uint64_t* _ldbg_get_##mask(void) { \
         return &_cdv1_containerof_##mask; \
     }
 
@@ -518,6 +527,13 @@ extern double (*_cdv1_execution_timer)(void);
         _cdv1_module_debug = (debug89*) suite;
         _cdv1_execution_timer = timer;
 
+        if (message != NULL) {
+            dbgsuite->message = message;
+            dbgsuite->flags &= ~DEBUG89_FLAGS_NOBUFFER;
+        } else if (dbgsuite->stack == NULL) {
+            dbgsuite->flags |= DEBUG89_FLAGS_NOBUFFER;
+        }
+
         #if (LDBG_HELP_LEVEL != 0)
             if ((dbgsuite->flags & DEBUG89_FLAGS_EXTENDED) != 0) {
                 if (entries != NULL) {
@@ -532,13 +548,6 @@ extern double (*_cdv1_execution_timer)(void);
         #else /* LDBG_HELP_LEVEL != 0 */
             (void) entries;
         #endif /* LDBG_HELP_LEVEL == 0 */
-
-        if (message != NULL) {
-            dbgsuite->message = message;
-            dbgsuite->flags &= ~DEBUG89_FLAGS_NOBUFFER;
-        } else {
-            dbgsuite->flags |= DEBUG89_FLAGS_NOBUFFER;
-        }
 
         #if (LDBG_SYMBOLS_DB == 1)
             if (_cdv1_debugger_funcsym.function[0]) {
@@ -645,7 +654,7 @@ extern double (*_cdv1_execution_timer)(void);
     #endif /* a block, where you can extend crashfault registration for your platform */
 
     uint64_t*
-    _abildbg_get_mask_RESET(void)
+    _ldbg_get_RESET(void)
     {
         return NULL;
     }
@@ -656,7 +665,7 @@ extern double (*_cdv1_execution_timer)(void);
         #if (LDBG_HELP_LEVEL != 0)
             const char *exception_name = NULL;
             trace89 *scanner = dbgsuite->stack;
-            float crashfault_time = 0.0;
+            double crashfault_time = 0.0;
             int32_t depth = 0, i = 0;
             size_t parent_line = 0;
             uint8_t id_instead_name = 0;
@@ -850,7 +859,7 @@ extern double (*_cdv1_execution_timer)(void);
             char *writer = dbgsuite->message;
             uint8_t newline_required = 0;
             int32_t depth = entry - stack;
-            float fixed_time = 0.0;
+            double fixed_time = 0.0;
             trace89 *prev = entry;
             char *end_at = NULL;
             int32_t i = 0;
@@ -943,7 +952,7 @@ extern double (*_cdv1_execution_timer)(void);
 
             va_start(args, format);
             if (nobuffer == 0) {
-                title = (const char*) (*(uintptr_t*) dbgsuite->message);
+                title = (const char*) (*(uintptr_t*) _cdv1_a(1, dbgsuite->message, _cdv1_aof(uintptr_t)));
                 format = _cdv1_fix(format);
             } else {
                 title = (const char*) dbgsuite->message;
@@ -965,7 +974,7 @@ extern double (*_cdv1_execution_timer)(void);
 
             va_start(args, format);
             if (nobuffer == 0) {
-                title = (const char*) (*(uintptr_t*) dbgsuite->message);
+                title = (const char*) (*(uintptr_t*) _cdv1_a(1, dbgsuite->message, _cdv1_aof(uintptr_t)));
             } else {
                 title = (const char*) dbgsuite->message;
             }
@@ -1010,7 +1019,7 @@ extern double (*_cdv1_execution_timer)(void);
 
             va_start(args, format);
             if (nobuffer == 0) {
-                title = (const char*) (*(uintptr_t*) dbgsuite->message);
+                title = (const char*) (*(uintptr_t*) _cdv1_a(1, dbgsuite->message, _cdv1_aof(uintptr_t)));
             } else {
                 title = (const char*) dbgsuite->message;
             }
@@ -1056,6 +1065,5 @@ extern double (*_cdv1_execution_timer)(void);
 
 /*
     To/do:
-            1) when <c89lib/vmss.h> appears, fix the alignment with uintptr_t-bag cast in dbglog
-            2) when <c89lib/xstr.h> appears, replace <stdio.h> and fix not async-safe sprintfs and etc
+            1) when <c89lib/xstr.h> appears, replace <stdio.h> and fix not async-safe sprintfs and etc
 */
