@@ -1,14 +1,16 @@
-#if !defined(LDBG_HELP_LEVEL)
-    #define LDBG_HELP_LEVEL 2
-#endif /* !LDBG_HELP_LEVEL */
+#if !defined(LDBG_AVOID_CONFIG)
+    #if !defined(LDBG_HELP_LEVEL)
+        #define LDBG_HELP_LEVEL 2
+    #endif /* !LDBG_HELP_LEVEL */
 
-#if !defined(LDBG)
-    #define LDBG ABPI_TRANSLATION_UNIT
-#endif /* !LDBG */
+    #if !defined(LDBG)
+        #define LDBG ABPI_TRANSLATION_UNIT
+    #endif /* !LDBG */
 
-#if !defined(LDBG_SYMBOLS_DB)
-    #define LDBG_SYMBOLS_DB 0
-#endif /* LDBG_SYMBOLS_DB */
+    #if !defined(LDBG_SYMBOLS_DB)
+        #define LDBG_SYMBOLS_DB 0
+    #endif /* LDBG_SYMBOLS_DB */
+#endif /* !LDBG_AVOID_CONFIG */
 
 #if (LDBG_HELP_LEVEL != 0) && (LDBG_HELP_LEVEL != 1) && (LDBG_HELP_LEVEL != 2)
     #error "c89lib/ldbg.h: unrecognized debug help level, available: 0, 1, 2"
@@ -121,10 +123,8 @@ extern uint8_t _cdv1_dummy_mask;
 extern void (*_cdv1_asf_logout)(const char *message);
 extern void (*_cdv1_crashfault_handler)(uint64_t crashfault);
 extern double (*_cdv1_execution_timer)(void);
+extern _cdv1_debugger_sym _cdv1_debugger_funcsym;
 
-#if (LDBG_SYMBOLS_DB == 1)
-    extern _cdv1_debugger_sym _cdv1_debugger_funcsym;
-#endif /* LDBG_SYMBOLS_DB == 1 */
 
 #if (ABPI_PLATFORM_WINDOWS_NT == 1)
     extern LONG (*_cdv1_old_exception_handler)(LPEXCEPTION_POINTERS info);
@@ -176,8 +176,10 @@ extern double (*_cdv1_execution_timer)(void);
 #undef dbgfninf
 #undef dbgfnwrn
 #undef dbgfnmsk
+#undef dbgfnsav
 #undef dbgdef
 #undef dbglog
+#undef dbgmsk
 #undef dbgmskdecl
 #undef dbgmskimpl
 #undef dbgmskoptn
@@ -199,35 +201,37 @@ extern double (*_cdv1_execution_timer)(void);
     #define dbgfnwrn sizeof _cdv1_warn_empty
     #define dbgfnmsk(mask, option) ((void) 0)
     #define dbgmsk(mask) _cdv1_dummy_mask
-    #define dbgdef(log, out) _cdv1_define((void (*)(void*, const char*)) log, (void*) out)
+    #define dbgdef(log, out) _cdv1_mini_define((void (*)(void*, const char*)) log, (void*) out)
     #define dbglog _cdv1_log_empty
     #define dbgfnsav() ((void) 0)
 
     #if !defined(_cdv1_outputs_empty_defined)
         #define _cdv1_outputs_empty_defined
-        #define _cdv1_log_empty_defined
 
         static int
         _cdv1_inform_empty(const char *text, ...) { (void) text; return 0; }
 
         static int
         _cdv1_warn_empty(const char *text, ...) { (void) text; return 0; }
+    #endif /* !_cdv1_outputs_empty_defined */
+
+    #if !defined(_cdv1_log_empty_defined)
+        #define _cdv1_log_empty_defined
 
         static int
         _cdv1_log_empty(int level, const char *format, ...) { (void) level, (void) format; return 0; }
-    #endif /* !_cdv1_outputs_empty_defined */
+    #endif /* !_cdv1_log_empty_defined */
 
     #if !defined(_cdv1_build_mini_defined)
         #define _cdv1_build_mini_defined
 
         abpi_inline static debug89
-        _cdv1_define(void (*log)(void*, const char*), void *out)
+        _cdv1_mini_define(void (*log)(void*, const char*), void *out)
         {
-            (void) log, (void) out;
-
             debug89 build_struct;
             build_struct.flags = 0;
             build_struct.error = 0;
+            (void) log, (void) out;
 
             return build_struct;
         }
@@ -348,8 +352,7 @@ extern double (*_cdv1_execution_timer)(void);
                 _cdv1_lfn_dbp->flags |= DEBUG89_FLAGS_OUTGROUP; \
             }; \
             _cdv1_lfn_dbp->flags &= ~DEBUG89_FLAGS_FILTERED; \
-            _cdv1_lfn_dbp->flags |= ((_cdv1_lfn_dbp->cursor->flags & TRACE89_FLAGS_FILTERED) != 0) \
-                                     << DEBUG89_FLAGS_FILTERED_BIT; \
+            _cdv1_lfn_dbp->flags |= (_cdv1_lfn_dbp->cursor->flags & TRACE89_FLAGS_FILTERED) != 0; \
             _cdv1_lfn_dbp->cursor--; \
         } \
         _cdv1_dbsym_final;
@@ -471,17 +474,18 @@ extern double (*_cdv1_execution_timer)(void);
     _cdv1_inform_log(const char *format, ...)
     {
         #if (LDBG_HELP_LEVEL == 2)
-            const char *msg = NULL;
-            va_list args;
-
-            if ((dbgsuite->flags & DEBUG89_FLAGS_FILTERED) != 0) {
+            if ((dbgsuite->flags & DEBUG89_FLAGS_FILTERED) != 0 || \
+                (dbgsuite->flags & DEBUG89_FLAGS_EXTENDED) == 0) {
                 return 0;
-            }
+            } else {
+                const char *msg = NULL;
+                va_list args;
 
-            va_start(args, format);
-            msg = _cdv1_message_of(0, format, &args);
-            dbgsuite->log(dbgsuite->out, msg);
-            va_end(args);
+                va_start(args, format);
+                msg = _cdv1_message_of(0, format, &args);
+                dbgsuite->log(dbgsuite->out, msg);
+                va_end(args);
+	    }
         #else /* LDBG_HELP_LEVEL == 2 */
             (void) format;
         #endif /* LDBG_HELP_LEVEL != 2 */
@@ -493,17 +497,18 @@ extern double (*_cdv1_execution_timer)(void);
     _cdv1_warn_log(const char *format, ...)
     {
         #if (LDBG_HELP_LEVEL == 2)
-            const char *msg = NULL;
-            va_list args;
-
-            if ((dbgsuite->flags & DEBUG89_FLAGS_FILTERED) != 0) {
+            if ((dbgsuite->flags & DEBUG89_FLAGS_FILTERED) != 0 || \
+                (dbgsuite->flags & DEBUG89_FLAGS_EXTENDED) == 0) {
                 return 0;
-            }
+            } else {
+                const char *msg = NULL;
+                va_list args;
 
-            va_start(args, format);
-            msg = _cdv1_message_of(1, format, &args);
-            dbgsuite->log(dbgsuite->out, msg);
-            va_end(args);
+                va_start(args, format);
+                msg = _cdv1_message_of(1, format, &args);
+                dbgsuite->log(dbgsuite->out, msg);
+                va_end(args);
+	    }
         #else /* LDBG_HELP_LEVEL == 2 */
             (void) format;
         #endif /* LDBG_HELP_LEVEL != 2 */
@@ -530,7 +535,7 @@ extern double (*_cdv1_execution_timer)(void);
         if (message != NULL) {
             dbgsuite->message = message;
             dbgsuite->flags &= ~DEBUG89_FLAGS_NOBUFFER;
-        } else if (dbgsuite->stack == NULL) {
+        } else if (entries != NULL) {
             dbgsuite->flags |= DEBUG89_FLAGS_NOBUFFER;
         }
 
@@ -551,8 +556,8 @@ extern double (*_cdv1_execution_timer)(void);
 
         #if (LDBG_SYMBOLS_DB == 1)
             if (_cdv1_debugger_funcsym.function[0]) {
-                dbgsuite->flags |= DEBUG89_FLAGS_DBG_SYM_DUMMY;
-                fprintf(NULL, "%s\n", _cdv1_debugger_funcsym.spec_word);
+                int dummybit = _cdv1_debugger_funcsym.function[1] * 2 > 50;
+                dbgsuite->flags |= dummybit << DEBUG89_FLAGS_DBG_SYM_DUMMY_BIT;
             }
         #endif /* LDBG_SYMBOLS_DB == 1 */
     }
@@ -1061,6 +1066,9 @@ extern double (*_cdv1_execution_timer)(void);
         #endif /* not supported platform log yet */
     }
 #endif /* CENLIB_IMPLEMENT && !CENLIB_IMPLEMENTED_LDBG_H */
+
+
+#undef LDBG_AVOID_CONFIG
 
 
 /*
