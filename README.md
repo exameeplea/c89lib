@@ -25,13 +25,14 @@ specifying ```LDBG_HELP_LEVEL```. In level 0 of help, there is no shadow call st
 the compiler would carve them out as useless), but a minimal version of resources with *dbgsuite->error* available, passable to modules compiled
 with different help level without any crashfaults. In level 1 of help, there is a shadow call stack leading with base logging into platform channels via
 ```dbglog(level, "Hello, World")```, where level is: ```LDBG_INFO``` (Windows/Linux: stdout, Android: logcat[info]), ```LDBG_ERROR``` (Windows/Linux
-stderr, Android: logcat[error]), ```LDBG_DEBUG``` (Windows: debugger, Linux: syslog, Android: logcat[debug]). In level 2 of help, there is pretty tree-like
+stderr, Android: logcat[error]), ```LDBG_DEBUG``` (Windows: debugger, Linux: syslog, Android: logcat[debug]), all function outputs are replaced with
+lightest ```dbgfnsav()``` macroinstruction, which saves latest checkpoint (line number) in call entry. In level 2 of help, there is pretty tree-like
 printing of call stack in run-time, filterable by masks with deferred parent headers printing (even muted), but without base logging. You control output's
 prefix by specifying ```LDBG``` with preffered string literal, default is translation unit filename. You also can enable assembly guaranteed labels for
 function borders in extended disassembler viewer by specifying ```LDBG_SYMBOLS_DB``` with 1. Now, to make it all worthy you setting up an unexpected
 crashfault handler for a proccess via ```dbginstall(NULL, NULL)```. First argument is a function called for fully exception handling. Second argument is
 a function for async-safe designed default contents logging in desired way (in dialog, in custom file, with additional data for example). Last function
-will receive unique pointers ```LDBG_CRASHFAULT_BEGIN``` before default contents will be sent and ```LDBG_CRASHFAULT_FINAL``` after contents are sent. In
+receive unique pointers ```LDBG_CRASHFAULT_BEGIN``` before default contents will be sent and ```LDBG_CRASHFAULT_FINAL``` after contents are sent. In
 other time, there a strings of default content sent. **Congratulations, you have learned this library fully! Feel free to leave an error/idea reports.** <br>
 <br>
 For commerical (and not) module developers, there an utility capable enough to help protecting the work against reverse-engineers. Firstly, it can patch
