@@ -40,4 +40,4 @@ read only section of executable format where are string literals of human-readab
 same length long (to avoid ruining offsets) with forming mapped *symbols.ldb* (or another called) file for real function names. Secondly, it can modify
 source texts proceed after preprocessor and replace function names with sequencial ID stored in mapped *symbols.ldb* file for real function names (it could
 save memory a lot, for example, 100'000'000 functions will take ~ 381 MB metadata instead of ~ 1.9 GB, but for small projects the difference is not big). And
-thirdly, it could be a static analyzer for missing *dbgfnjmp()*/*dbgfnret()* pairs with auto-fix or developer notifying.
+thirdly, it could be a static analyzer for missing *dbgfnjmp()*/*dbgfnret()* pairs with auto-fix or developer notifying. **Work in progress, please wait.**
