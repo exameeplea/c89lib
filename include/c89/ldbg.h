@@ -223,6 +223,7 @@
             debug89 build_struct;
             build_struct.flags = 0;
             build_struct.error = 0;
+            build_struct.message = NULL;
             (void) log, (void) out;
 
             return build_struct;
@@ -258,8 +259,9 @@
         _cdv1_dbsym_begin; \
         uint8_t _cdv1_lfn_dbpret_used; \
         debug89 *_cdv1_lfn_dbp = (debug89*) dbgsuite; \
-        uint8_t _cdv1_lfn_full = _cdv1_lfn_dbp != NULL && _cdv1_lfn_dbp->stack != NULL && \
-                                 ((_cdv1_lfn_dbp->flags & DEBUG89_FLAGS_EXTENDED) != 0); \
+        uint8_t _cdv1_lfn_full = _cdv1_lfn_dbp != NULL && \
+                                 ((_cdv1_lfn_dbp->flags & DEBUG89_FLAGS_EXTENDED) != 0) && \
+                                _cdv1_lfn_dbp->stack != NULL; \
         if (_cdv1_lfn_full == 1) { \
             (++_cdv1_lfn_dbp->cursor)->flags = 0; \
             (_cdv1_lfn_dbp->cursor)->unit = ABPI_TRANSLATION_UNIT; \
@@ -346,8 +348,9 @@
         _cdv1_dbsym_begin; \
         uint8_t _cdv1_lfn_dbpret_used; \
         debug89 *_cdv1_lfn_dbp = (debug89*) dbgsuite; \
-        uint8_t _cdv1_lfn_full = _cdv1_lfn_dbp != NULL && _cdv1_lfn_dbp->stack != NULL && \
-                                 ((_cdv1_lfn_dbp->flags & DEBUG89_FLAGS_EXTENDED) != 0); \
+        uint8_t _cdv1_lfn_full = _cdv1_lfn_dbp != NULL && \
+                                 ((_cdv1_lfn_dbp->flags & DEBUG89_FLAGS_EXTENDED) != 0) && \
+                                _cdv1_lfn_dbp->stack != NULL; \
         if (_cdv1_lfn_full == 1) { \
             (++_cdv1_lfn_dbp->cursor)->flags = \
                 0 | (((_cdv1_lfn_dbp->flags & DEBUG89_FLAGS_FILTERED) != 0) << TRACE89_FLAGS_FILTERED_BIT); \
@@ -573,37 +576,42 @@
 
         #if (LDBG_SYMBOLS_DB == 1)
             if (_cdv1_debugger_funcsym.function[0]) {
-                int dummybit = _cdv1_debugger_funcsym.function[1] * 2 > 50;
+                int dummybit = _cdv1_debugger_funcsym.function[1] * 2 > 27;
                 dbgsuite->flags |= dummybit << DEBUG89_FLAGS_DBG_SYM_DUMMY_BIT;
-            }
         #endif /* LDBG_SYMBOLS_DB == 1 */
     }
 
     char*
     _cdv1_fix(char *buffer, const char *text)
     {
-        char *writer = NULL;
-        char *last_ln = NULL;
-        char *ptr, sym;
+        #if (LDBG_HELP_LEVEL != 0)
+            char *writer = NULL;
+            char *last_ln = NULL;
+            char *ptr, sym;
 
-        writer = buffer;
+            writer = buffer;
 
-        for (ptr = (char*) text, sym = *text; sym != '\0'; ++ptr, sym = *ptr) {
-            if (sym == '\n') {
-                *writer = '\t', last_ln = (last_ln == NULL) ? writer : last_ln, writer++;
-            } else {
-                *writer++ = sym, last_ln = NULL;
+            for (ptr = (char*) text, sym = *text; sym != '\0'; ++ptr, sym = *ptr) {
+                if (sym == '\n') {
+                    *writer = '\t', last_ln = (last_ln == NULL) ? writer : last_ln, writer++;
+                } else {
+                    *writer++ = sym, last_ln = NULL;
+                }
             }
-        }
 
-        if (last_ln == NULL) {
-            *writer++ = '\n', *writer = '\0';
-        } else {
-            /* last_ln points to writer's last \t, so overwrite it */
-            *last_ln++ = '\n', *last_ln = '\0';
-        }
+            if (last_ln == NULL) {
+                *writer++ = '\n', *writer = '\0';
+            } else {
+                /* last_ln points to writer's last \t, so overwrite it */
+                *last_ln++ = '\n', *last_ln = '\0';
+            }
 
-        return buffer;
+            return buffer;
+        #else /* LDBG_HELP_LEVEL != 0 */
+            (void) buffer, (void) text;
+
+            return NULL;
+        #endif /* LDBG_HELP_LEVEL == 0 */
     }
 
     #if (ABPI_PLATFORM_WINDOWS_NT == 1)
@@ -666,7 +674,9 @@
                 }
 
                 _exit(signal);
-            #endif /* LDBG_HELP_LEVEL != 0 */
+            #else /* LDBG_HELP_LEVEL != 0 */
+                (void) signal, (void) info, (void) ctx;
+            #endif /* LDBG_HELP_LEVEL == 0 */
         }
     #else /* ABPI_PLATFORM_GNU_LINUX == 1 */
         #error "c89/ldbg.h: please, implement my crashfault registration with the support of your platform"
@@ -696,7 +706,7 @@
 
             if (dbgsuite == NULL || (dbgsuite->flags & DEBUG89_FLAGS_EXTENDED) == 0) {
                 _cdv1_asf_logout(LDBG_CRASHFAULT_BEGIN);
-                _cdv1_asf_logout("COULDN'T PRINT TRACE SNAPSHOT DUE TO DEBUG RESOURCES ARE NULL/ NOT EXTENDED\n");
+                _cdv1_asf_logout("COULD NOT PRINT TRACE SNAPSHOT DUE TO DEBUG RESOURCES ARE NULL/ NOT EXTENDED\n");
                 _cdv1_asf_logout(LDBG_CRASHFAULT_FINAL);
 
                 return;
@@ -805,10 +815,15 @@
             sprintf(buffer, "%u BIT: ", ABPI_ARCHITECTURE);
             _cdv1_asf_logout(buffer);
             _cdv1_asf_logout(ABPI_PLATFORM_STRING);
-            _cdv1_asf_logout("\nMODULE RAN FOR ");
-            sprintf(buffer, "%.3f", crashfault_time);
-            _cdv1_asf_logout(buffer);
-            _cdv1_asf_logout(" SECONDS\n");
+            
+            if (_cdv1_execution_timer != NULL) {
+                _cdv1_asf_logout("\nMODULE RAN FOR ");
+                sprintf(buffer, "%.3f", crashfault_time);
+                _cdv1_asf_logout(buffer);
+                _cdv1_asf_logout(" SECONDS");
+            }
+
+            _cdv1_asf_logout("\nREPORT THIS TO YOUR SOFTWARE DISTRIBUTOR\n");
             _cdv1_asf_logout(LDBG_CRASHFAULT_FINAL);
         #else /* LDBG_HELP_LEVEL != 0 */
             (void) crashfault;
@@ -915,6 +930,7 @@
             newline_required = (prev == stack + 1 && (prev->flags & TRACE89_FLAGS_PRINTED) == 0);
             if ((dbgsuite->flags & DEBUG89_FLAGS_OUTGROUP) != 0 && newline_required == 1) {
                 dbgsuite->flags &= ~DEBUG89_FLAGS_OUTGROUP;
+                outgroup = 0;
             }
 
             while (prev != entry + 1) {
