@@ -248,7 +248,7 @@
                 _cdv1_lfn_dbp->stack->flags &= ~TRACE89_FLAGS_PRINTED; \
             } else { \
                 (_cdv1_lfn_dbp->cursor)->flags = 0; \
-                (_cdv1_lfn_dbp->cursor)->unit = ABPI_TRANSLATION_UNIT; \
+                (_cdv1_lfn_dbp->cursor)->unit = LDBG; \
                 (_cdv1_lfn_dbp->cursor)->func = ABPI_FUNCTION_UNIT; \
                 (_cdv1_lfn_dbp->cursor)->line = __LINE__; \
             } \
@@ -264,7 +264,7 @@
                                 _cdv1_lfn_dbp->stack != NULL; \
         if (_cdv1_lfn_full == 1) { \
             (++_cdv1_lfn_dbp->cursor)->flags = 0; \
-            (_cdv1_lfn_dbp->cursor)->unit = ABPI_TRANSLATION_UNIT; \
+            (_cdv1_lfn_dbp->cursor)->unit = LDBG; \
             (_cdv1_lfn_dbp->cursor)->func = ABPI_FUNCTION_UNIT; \
             (_cdv1_lfn_dbp->cursor)->line = __LINE__; \
         }
@@ -666,7 +666,7 @@
                 }
 
                 if (old_sa != NULL && old_sa->sa_handler != SIG_DFL && old_sa->sa_handler != SIG_IGN) {
-                    if (old_sa->sa_flags & SA_SIGINFO) {
+                    if ((old_sa->sa_flags & SA_SIGINFO) != 0) {
                         old_sa->sa_sigaction(signal, info, ctx);
                     } else {
                         old_sa->sa_handler(signal);
@@ -745,11 +745,11 @@
                 _cdv1_asf_logout("\n");
                 scanner++;
             }
-            for (i = 0; i < depth + 1; ++i) {
+            for (i = 0; i < depth; ++i) {
                 _cdv1_asf_logout(" ");
             }
 
-            _cdv1_asf_logout("    <");
+            _cdv1_asf_logout(" \t <");
 
             #if (ABPI_PLATFORM_WINDOWS_NT == 1)
                 if (crashfault == EXCEPTION_ACCESS_VIOLATION) {
@@ -807,23 +807,22 @@
             }
 
             _cdv1_asf_logout(">");
-
             _cdv1_asf_logout(".............");
             sprintf(buffer, "%" FMTSIZE "+", (scanner - 1)->line);
             _cdv1_asf_logout(buffer);
-            _cdv1_asf_logout("\n\nPLATFORM ");
+            _cdv1_asf_logout("\n\nREPORT THIS TO YOUR SOFTWARE DISTRIBUTOR\n");
+            _cdv1_asf_logout("COMLILED FOR PLATFORM ");
             sprintf(buffer, "%u BIT: ", ABPI_ARCHITECTURE);
             _cdv1_asf_logout(buffer);
-            _cdv1_asf_logout(ABPI_PLATFORM_STRING);
+            _cdv1_asf_logout(ABPI_PLATFORM_STRING "\n");
             
             if (_cdv1_execution_timer != NULL) {
-                _cdv1_asf_logout("\nMODULE RAN FOR ");
+                _cdv1_asf_logout("THIS MODULE RAN FOR ");
                 sprintf(buffer, "%.3f", crashfault_time);
                 _cdv1_asf_logout(buffer);
-                _cdv1_asf_logout(" SECONDS");
+                _cdv1_asf_logout(" SECONDS\n");
             }
 
-            _cdv1_asf_logout("\nREPORT THIS TO YOUR SOFTWARE DISTRIBUTOR\n");
             _cdv1_asf_logout(LDBG_CRASHFAULT_FINAL);
         #else /* LDBG_HELP_LEVEL != 0 */
             (void) crashfault;
@@ -880,7 +879,7 @@
             }
 
             for (i = 1; i < depth; ++i) {
-                writer += sprintf(writer, "   ");
+                writer += sprintf(writer, "|  ");
             }
 
             if (depth != 0) {
@@ -955,10 +954,10 @@
             *writer++ = ' ';
 
             for (i = 0; i < depth; ++i) {
-                writer += sprintf(writer, "   ");
+                writer += sprintf(writer, "|  ");
             }
 
-            writer += sprintf(writer, "%s", (!warning) ? "[?] " : "[!] ");
+            writer += sprintf(writer, "| %s", (!warning) ? "[?] " : "[!] ");
             writer += vsprintf(writer, format, *args);
             _cdv1_fix(dbgsuite->message + outgroup, dbgsuite->message + outgroup);
 
@@ -978,7 +977,7 @@
             uint8_t nosuite = dbgsuite == NULL;
             uint8_t nobuffer = nosuite == 0 && (dbgsuite->flags & DEBUG89_FLAGS_NOBUFFER) != 0;
             const char *title = "LDBG.H";
-            int priority;
+            int priority = 1;
             va_list args;
 
             if (format == NULL || *format == '\0') {
