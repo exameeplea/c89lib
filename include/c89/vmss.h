@@ -26,7 +26,7 @@
         (((uintptr_t) (ptr) + (((val) - 1) * (dir))) & ~((val) - 1)))
 
     #define malignof(type) \
-        (offsetof(struct {uint8_t _1; type _2;}, _2))
+        (abpi_extension offsetof(struct {uint8_t _1; type _2;}, _2))
 
     #define malignis(ptr, val) \
         (((uintptr_t) (ptr) & ((val) - 1)) == 0)
